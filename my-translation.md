@@ -67,6 +67,7 @@ Flutterは1フレームにつき1回レイアウトを行い、レイアウト�
 ツリーを下るときに1回、ツリーを上るときに1回です。
 
 ※[1]:少なくともレイアウトについてはです。ペイントのため、必要であればアクセシビリティ・ツリーを構築するため、必要であればヒットテストのために、再訪問されるかもしれません。
+
 ※[2]:現実はもちろん、少し複雑です。いくつかのレイアウトには、固有の寸法（テキストや画像のようにそれ自身の内容によってサイズが定まるもの）やベースラインの測定が関係しており、これには関連するサブツリーの追加の巡回が含まれます（最悪の場合の2次関数的性能の可能性を緩和するために積極的なキャッシングが使用されます）。ただし、これらのケースは驚くほど稀です。特に、固有の寸法はshrink-wrappingの一般的なケースでは必要ありません。
 
 Flutter has several specializations of this general protocol.
@@ -199,15 +200,29 @@ Reusing elements is important for performance because elements own two critical 
 When the framework is able to reuse an element, the state for that logical part of the user interface is preserved and the layout information computed previously can be reused, often avoiding entire subtree walks.
 In fact, reusing elements is so valuable that Flutter supports _non-local_ tree mutations that preserve state and layout information.
 
+エレメントは2つの重要なデータを所有しているのでエレメントを再利用することはパフォーマンスに重要です。それは、Stateful Widgetのstate、および基礎となるレンダーオブジェクトです。
+フレームワークがエレメントを再利用できると、ユーザーインターフェイスの論理的な部分のstateが保存され、以前に計算されたレイアウト情報を再利用できます。これにより、しばしばサブツリー全体の巡回を回避できます。
+実際、エレメントの再利用は非常に価値があり、Flutterはstateとレイアウト情報を保持する「非局所」ツリー変更をサポートしています。
+
 Developers can perform a non-local tree mutation by associating a `GlobalKey` with one of their widgets.
 Each global key is unique throughout the entire application and is registered with a thread-specific hash table.
 During the build phase, the developer can move a widget with a global key to an arbitrary location in the element tree.
 Rather than building a fresh element at that location, the framework will check the hash table and reparent the existing element from its previous location to its new location, preserving the entire subtree.
 
+開発者は、自分のWidgetの一つにGlobalKeyを関連付けることで、非局所ツリー変更を実行できます。
+各GlobalKeyはアプリケーション全体で一意であり、スレッド固有のハッシュテーブルに登録されます。
+ビルドフェーズ中、開発者はGlobalKeyを持つWidgetをエレメントツリー内の任意の位置に移動できます。
+新しい位置に新しいエレメントを構築するのではなく、フレームワークはハッシュテーブルをチェックし、前の位置から現在の位置に既存のエレメントを再配置し、サブツリー全体を保存します。
+
 The render objects in the reparented subtree are able to preserve their layout information because the layout constraints are the only information that flows from parent to child in the render tree.
 The new parent is marked dirty for layout because its child list has changed, but if the new parent passes the child the same layout constraints the child received from its old parent, the child can return immediately from layout, cutting off the walk.
 
+再配置されたサブツリー内のレンダーオブジェクトは、レイアウト情報を保存できます。なぜなら、レンダーツリー内ではレイアウト制約が親から子への唯一の情報だからです。
+新しい親はレイアウトのためにdirtyにマークされます。なぜなら、その子リストが変更されたからです。しかし、新しい親が子に古い親から受け取ったレイアウト制約と同じレイアウト制約を渡す場合、子はすぐにレイアウトから戻ることができ、巡回を打ち切ることができます。
+
 Global keys and non-local tree mutations are used extensively by developers to achieve effects such as hero transitions and navigation.
+
+GlobalKeyと非局所ツリー変更は、Heroの遷移やナビゲーションなどの視覚効果を実現するために、開発者によって広く使用されています。
 
 ### Constant-factor optimizations
 

@@ -126,7 +126,6 @@ After being built, the widgets are held by the _element tree_, which retains the
 The element tree is necessary because the widgets themselves are _immutable_, which means (among other things), they cannot remember their parent or child relationships with other widgets.
 The element tree also holds the _state_ objects associated with stateful widgets.
 
-
 レイアウトアルゴリズムと同様に、FlutterのWidget構築アルゴリズムは劣線形です。
 buildされた後、Widgetは「エレメントツリー」によって保持され、ユーザーインターフェイスの論理構造を保持します。
 エレメントツリーが必要な理由は、Widget自体がイミュータブル（不変）であるためです。これは、他のWidgetとの親子関係を覚えることができないことを含みます。
@@ -137,7 +136,7 @@ The framework keeps a list of dirty elements and jumps directly to them during t
 During the build phase, information flows _unidirectionally_ down the element tree, which means each element is visited at most once during the build phase.
 Once cleaned, an element cannot become dirty again because, by induction, all its ancestor elements are also clean<sup><a href="#a4">4</a></sup>.
 
-ユーザー入力（あるいはその他の刺激）に対応して、エレメントはdirtyになることがあります。例えば、開発者が（そのエレメントに）関連するstateオブジェクトにsetState()を呼び出した場合です。
+ユーザー入力（あるいはその他の刺激）に対応して、エレメントはdirtyになることがあります。例えば、開発者が（そのエレメントに）関連しているstateオブジェクトにsetState()を呼び出した場合です。
 フレームワークはdirtyなエレメントのリストを保持し、buildフェーズ中にこれらのエレメントに直接ジャンプし、cleanなエレメントをスキップします。
 buildフェーズ中、情報はエレメントツリーを下方向に一方向に流れるため、各エレメントはbuildフェーズ中に最大で1回訪問されます。
 一度きれいにされたエレメントは、帰納法により、その祖先がすべてきれいであるため、再び汚れることはありません[4]。
@@ -148,12 +147,19 @@ Because widgets are _immutable_, if an element has not marked itself as dirty, t
 Moreover, the element need only compare the object identity of the two widget references in order to establish that the new widget is the same as the old widget.
 Developers exploit this optimization to implement the _reprojection_ pattern, in which a widget includes a prebuilt child widget stored as a member variable in its build.
 
-
+Widgetは変更不可能（immutable）であるため、エレメントが自身を変更された（dirty）とマークしていない場合、親が同一のWidgetでエレメントをrebuildすると、エレメントは直ちにbuildから戻ることができ、巡回を中断することができます。
+さらに、エレメントは新しいWidgetが古いWidgetと同じであることを立証するために、2つのWidget参照のオブジェクトの同一性を比較するだけで済みます。
+開発者は、この最適化を利用して、reprojectionパターンを実装します。このパターンでは、Widgetはビルド内のメンバー変数として格納された事前に構築された子Widgetを含みます。
 
 During build, Flutter also avoids walking the parent chain using `InheritedWidgets`.
 If widgets commonly walked their parent chain, for example to determine the current theme color, the build phase would become O(N²) in the depth of the tree, which can be quite large due to aggressive composition.
 To avoid these parent walks, the framework pushes information down the element tree by maintaining a hash table of `InheritedWidget`s at each element.
 Typically, many elements will reference the same hash table, which changes only at elements that introduce a new `InheritedWidget`.
+
+ビルドの間、FlutterはInheritedWidgetsを使用して親チェーンをたどることもまた避けます。
+Widgetが通常、たとえば現在のテーマカラーを決定するために親チェーンをたどる場合、ツリーの深さに応じてビルドフェーズはO(N²)になります。これは積極的な構築の使用によってかなり大きくなる可能性があります。
+これらの親辿りを避けるために、フレームワークは各エレメントでInheritedWidgetのハッシュテーブルを維持することによって情報をエレメントツリーに下方にプッシュします。
+通常、多くの要素が同じハッシュテーブルを参照し、新しいInheritedWidgetを導入するエレメントでのみ変更されます。
 
 ### Linear reconciliation
 
@@ -161,15 +167,31 @@ Contrary to popular belief, Flutter does not employ a tree-diffing algorithm.
 Instead, the framework decides whether to reuse elements by examining the child list for each element independently using an O(N) algorithm.
 The child list reconciliation algorithm optimizes for the following cases:
 
+一般的な信条とは異なり、Flutterはtree-diffing（木の差分）アルゴリズムを採用していません。
+代わりに、フレームワークはO(N)のアルゴリズムを使用して、各要素の子リストを個別に調べることで、要素を再利用するかどうかを決定します。
+子リストの照合アルゴリズムは、次のケースに最適化されています：
+
 * The old child list is empty.
 * The two lists are identical.
 * There is an insertion or removal of one or more widgets in exactly one place in the list.
 * If each list contains a widget with the same key<sup><a href="#a5">5</a></sup>, the two widgets are matched.
 
+古い子リストが空である場合。
+両方のリストが同一である場合。
+リスト内のちょうど1ヶ所で1つ以上のWidgetが挿入または削除されている場合。
+同じキーを持つWidgetがそれぞれのリストに含まれている場合[5]、2つのWidgetが一致します。
+
+※[5]:キーは、Widgetに任意で関連付けられたopaque object（不透明オブジェクト：不特定な型のオブジェクト）であり、その等価演算子は照合アルゴリズムに影響を与えるために使用されます。
+
 The general approach is to match up the beginning and end of both child lists by comparing the runtime type and key of each widget, potentially finding a non-empty range in the middle of each list that contains all the unmatched children.
 The framework then places the children in the range in the old child list into a hash table based on their keys.
 Next, the framework walks the range in the new child list and queries the hash table by key for matches.
 Unmatched children are discarded and rebuilt from scratch whereas matched children are rebuilt with their new widgets.
+
+一般的なアプローチは、各Widgetの実行時の型とキーを比較して、両方の子リストの先頭と末尾を対応させ、各リストの中間に一致しない子が含まれる可能性のある空でない範囲を見つけることです。
+その後、フレームワークは、古い子リストの範囲内の子をキーに基づいてハッシュテーブルに配置します。
+次に、フレームワークは新しい子リストの範囲を巡回し、一致するものをキーでハッシュテーブルからクエリします。
+一致しない子は破棄されてゼロから再構築される一方で、一致した子は新しいWidgetで再構築されます。
 
 ### Tree surgery
 

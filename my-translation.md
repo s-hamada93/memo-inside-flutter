@@ -86,6 +86,10 @@ Flutterはこの一般的なプロトコルにいくつかの特殊化を施し�
 子の位置は、子がレイアウトから戻った後でないと決定されないため、子のレイアウトはその位置に依存できないことに注意してください。
 その結果、親は子のレイアウトを再計算する必要なく、子の位置を自由に変更できます。
 
+※[3]:技術的には、子供の位置はそのRenderBoxのジオメトリの一部ではなく、したがってレイアウト中に実際に計算する必要はありません。
+多くのRenderオブジェクトは、自身の原点に対してその単一の子供を暗黙的に位置づけ、全く計算やストレージが必要ありません。
+一部のRenderオブジェクトは、（例えば、paintフェーズ中など）それに続く描画がない場合には、計算を避けるために、子供の位置を最後の瞬間まで計算しません。
+
 More generally, during layout, the _only_ information that flows from parent to child are the constraints and the _only_ information that flows from child to parent is the geometry.
 These invariants can reduce the amount of work required during layout:
 
